@@ -1,4 +1,8 @@
-import { defineRpcContract, type BbPluginApi } from "@bb/plugin-sdk";
+import {
+  defineRpcContract,
+  type BbPluginApi,
+  type ExperimentalHostClient,
+} from "@bb/plugin-sdk";
 import { z } from "zod";
 import {
   createIssueArgs,
@@ -11,6 +15,7 @@ import {
   updateIssueArgs,
   type Issue,
 } from "../beads/bd-client";
+import { bdHostContract } from "./host-contract";
 import {
   resolveWorkspaceTarget,
   selectLocalWorkspaceSource,
@@ -105,6 +110,11 @@ interface BeadsSettings {
 
 type HostExecute = NonNullable<Parameters<typeof runBdJson>[1]>["execute"];
 
+const hostClients = new WeakMap<
+  BbPluginApi,
+  ExperimentalHostClient<typeof bdHostContract>
+>();
+
 interface ProjectLike {
   id: string;
   name?: string | null;
@@ -172,12 +182,30 @@ async function getWorkspaceTarget(
 }
 
 function hostExecutor(bb: BbPluginApi): HostExecute | undefined {
-  // Older installed BB servers may expose declarations without the host
-  // command transport. Keep the plugin loadable and fail closed for remote
-  // project sources below instead of spawning on the server by accident.
-  return (
-    bb.hosts as unknown as { execute?: HostExecute } | undefined
-  )?.execute;
+  const hosts = bb.hosts as BbPluginApi["hosts"] | undefined;
+  if (typeof hosts?.experimental_client !== "function") return undefined;
+  let client = hostClients.get(bb);
+  if (!client) {
+    client = hosts.experimental_client({ contract: bdHostContract });
+    hostClients.set(bb, client);
+  }
+  return async (request) => {
+    if (!request.hostId) {
+      throw new Error("A host id is required for host-routed Beads commands.");
+    }
+    return client!.call(
+      "execute",
+      {
+        command: request.command,
+        args: [...request.args],
+        cwd: request.cwd,
+        ...(request.timeoutMs !== undefined
+          ? { timeoutMs: request.timeoutMs }
+          : {}),
+      },
+      { hostId: request.hostId },
+    );
+  };
 }
 
 async function assertHostRouting(
@@ -210,12 +238,14 @@ async function runBdAtTarget(
   target: { path: string; hostId?: string },
   args: readonly string[],
 ) {
-  const execute = hostExecutor(bb);
-  await assertHostRouting(bb, target, execute);
+  const hostId = target.hostId ?? (await bb.sdk.system.config()).primaryHostId ?? undefined;
+  const routedTarget = { ...target, ...(hostId ? { hostId } : {}) };
+  const execute = hostId === undefined ? undefined : hostExecutor(bb);
+  await assertHostRouting(bb, routedTarget, execute);
   return runBdJson(args, {
     cwd: target.path,
-    ...(typeof execute === "function" && target.hostId !== undefined
-      ? { hostId: target.hostId }
+    ...(typeof execute === "function" && hostId !== undefined
+      ? { hostId }
       : {}),
     ...(typeof execute === "function" ? { execute } : {}),
   });
@@ -226,12 +256,14 @@ async function runRawBdAtTarget(
   target: { path: string; hostId?: string },
   args: readonly string[],
 ) {
-  const execute = hostExecutor(bb);
-  await assertHostRouting(bb, target, execute);
+  const hostId = target.hostId ?? (await bb.sdk.system.config()).primaryHostId ?? undefined;
+  const routedTarget = { ...target, ...(hostId ? { hostId } : {}) };
+  const execute = hostId === undefined ? undefined : hostExecutor(bb);
+  await assertHostRouting(bb, routedTarget, execute);
   return runBd(args, {
     cwd: target.path,
-    ...(typeof execute === "function" && target.hostId !== undefined
-      ? { hostId: target.hostId }
+    ...(typeof execute === "function" && hostId !== undefined
+      ? { hostId }
       : {}),
     ...(typeof execute === "function" ? { execute } : {}),
   });
@@ -389,6 +421,10 @@ async function runProjectBd(
 
 export default async function plugin(bb: BbPluginApi) {
   bb.log.info("loaded");
+
+  // Construct the typed host client during registration. Calls remain lazy and
+  // start the per-host worker only when a project actually needs bd.
+  hostExecutor(bb);
 
   const settings = bb.settings.define({
     projectId: {

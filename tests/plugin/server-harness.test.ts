@@ -71,7 +71,7 @@ describe("Beads server harness", () => {
     expect(requests[0]?.args.slice(0, 2)).toEqual(["--json", "--sandbox"]);
   });
 
-  it("keeps an explicit workspace path local", async () => {
+  it("routes an explicit workspace path through the primary host", async () => {
     const requests: Array<{ hostId?: string; cwd: string }> = [];
     const host = createFakePluginHost({
       workspacePath: "/primary/override",
@@ -85,7 +85,7 @@ describe("Beads server harness", () => {
 
     await host.harness.callRpc("listIssues", {});
     expect(requests[0]).toMatchObject({ cwd: "/primary/override" });
-    expect(requests[0]).not.toHaveProperty("hostId");
+    expect(requests[0]).toMatchObject({ hostId: "host-primary" });
   });
 
   it("maps bd failures to actionable RPC errors", async () => {

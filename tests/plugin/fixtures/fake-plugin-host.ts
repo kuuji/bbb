@@ -182,10 +182,18 @@ export function createFakePluginHost(options: CreateFakePluginHostOptions = {}) 
       },
     } as BbPluginApi["sdk"],
     hosts: {
-      execute: async (request: PluginHostCommandRequest) => {
-        checkDisposed();
-        return hostExecute(request);
-      },
+      experimental_client: () => ({
+        call: async (
+          _method: string,
+          input: Record<string, unknown>,
+          { hostId }: { hostId: string },
+        ) => {
+          checkDisposed();
+          return hostExecute({ ...input, hostId } as PluginHostCommandRequest);
+        },
+        experimental_onWorkerExit: () => () => {},
+        experimental_onSignal: () => () => {},
+      }),
     },
     server: {
       loopbackBaseUrl: "http://127.0.0.1:38886",

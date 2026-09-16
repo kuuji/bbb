@@ -66,7 +66,19 @@ function makeHost(options: {
         })),
       },
     },
-    hosts: options.legacyHostApi ? {} : { execute },
+    hosts: options.legacyHostApi
+      ? {}
+      : {
+          experimental_client: () => ({
+            call: async (
+              _method: string,
+              input: Record<string, unknown>,
+              { hostId }: { hostId: string },
+            ) => execute({ ...input, hostId }),
+            experimental_onWorkerExit: vi.fn(),
+            experimental_onSignal: vi.fn(),
+          }),
+        },
     rpc: {
       register: vi.fn((_contract: unknown, handlers: Record<string, any>) => {
         registrations.handlers = handlers;
@@ -285,7 +297,7 @@ describe("Beads server host routing", () => {
     }
   });
 
-  it("keeps an explicit path override on the primary host", async () => {
+  it("routes an explicit path override through the primary host", async () => {
     const { bb, execute, registrations } = makeHost({
       workspacePath: "/primary/beads",
     });
@@ -296,7 +308,7 @@ describe("Beads server host routing", () => {
     expect(execute).toHaveBeenCalledWith(
       expect.objectContaining({ cwd: "/primary/beads" }),
     );
-    expect(execute.mock.calls[0][0]).not.toHaveProperty("hostId");
+    expect(execute.mock.calls[0][0]).toMatchObject({ hostId: "host-primary" });
   });
 
   it("reports missing project selection and disconnected hosts", async () => {

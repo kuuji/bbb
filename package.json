@@ -48,7 +48,8 @@
       "icon": "Zap"
     },
     "server": "./plugin/server.ts",
-    "app": "./plugin/app.tsx"
+    "app": "./plugin/app.tsx",
+    "host": "./plugin/host.ts"
   },
   "dependencies": {
     "@hugeicons/core-free-icons": "^4.1.3",
@@ -60,6 +61,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@get-bb/plugin-sdk": "0.4.47",
     "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
