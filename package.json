@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-beads",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A Beads plugin for bb.",
   "license": "MIT",
   "homepage": "https://github.com/olegtaratuhin/bbb#readme",
@@ -34,12 +34,13 @@
     "types",
     "docs",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "skills"
   ],
   "type": "module",
   "engines": {
     "bb": ">=0.36",
-    "bbPluginSdk": "^0.4.1"
+    "bbPluginSdk": ">=0.4.47 <0.7"
   },
   "bb": {
     "name": "Beads",
