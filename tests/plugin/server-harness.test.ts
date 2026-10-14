@@ -57,6 +57,7 @@ describe("Beads server harness", () => {
       "listProjects",
       "initializeProject",
       "listIssues",
+      "listLabels",
       "showIssue",
       "createIssue",
       "updateIssue",
@@ -138,6 +139,19 @@ describe("Beads server harness", () => {
     await plugin(host.bb);
     await expect(host.harness.callRpc("listIssues", {})).rejects.toThrow("absolute path to bd");
     expect(execute).not.toHaveBeenCalled();
+  });
+
+  it("loads the label catalog without the current issue query", async () => {
+    const execute = vi.fn(async () => successResult([
+      { ...issue, labels: ["project:b", "bug"] },
+      { ...issue, id: "other", labels: ["project:a", "bug"] },
+    ]));
+    const host = createFakePluginHost({ workspacePath: "/connection", hostCommandExecutor: execute });
+    await plugin(host.bb);
+    await expect(host.harness.callRpc("listLabels", {})).resolves.toEqual({ labels: ["project:a", "project:b", "bug"] });
+    expect(execute).toHaveBeenCalledWith(expect.objectContaining({
+      args: ["--json", "--sandbox", "list", "--all", "--flat", "--limit", "0"],
+    }));
   });
 
   it("maps bd failures to actionable RPC errors", async () => {
