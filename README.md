@@ -9,7 +9,8 @@ same project and host context as bb, including bb Connect sessions.
 ## What it provides
 
 - Kanban, compact list, dependency graph, and epic/milestone views.
-- Status, priority, assignee, author, and dependency visibility.
+- Status, priority, assignee, author, labels, and dependency visibility.
+- Project-first label badges on cards, list rows and details, plus a Labels dropdown.
 - Query-aware search with syntax highlighting, completion, validation, and
   actionable diagnostics.
 - Quick filters that write shareable expressions into the query field instead
@@ -175,6 +176,24 @@ contracts and supported grammar.
 
 Invalid structured queries are rejected before the plugin invokes `bd`. This
 prevents malformed input from being silently treated as free-text search.
+
+### Label badges and picker
+
+Cards and list rows show compact label badges, with `project:` labels first.
+Issue details show all labels. Overflow badges show the remaining count; open
+an issue to see the full set.
+
+Choose a label from **Labels** beside search. The picker discovers labels from
+the whole active workspace, independently of the current query, so filtering
+one project never hides the other project choices. Refresh reloads the catalog.
+The chosen label appears as a visible query clause; switching or choosing
+**All labels** changes the top-level label condition while preserving other
+structured filters and OR/NOT precedence. Advanced label conditions remain in
+the query. Selecting a label with a plain text search replaces that text, as
+explained beside the picker; incomplete queries disable it until corrected.
+
+This is a view filter. It does not automatically label new tasks or establish
+access control.
 
 ### Mobile query assistance
 

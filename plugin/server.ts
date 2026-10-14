@@ -15,6 +15,7 @@ import {
   updateIssueArgs,
   type Issue,
 } from "../beads/bd-client";
+import { collectIssueLabels } from "../beads/labels";
 import { isBdExecutable } from "../beads/bd-executable";
 import { bdHostContract } from "./host-contract";
 import {
@@ -74,6 +75,10 @@ export const rpcContract = defineRpcContract({
       query: z.string().min(1).max(2000).optional(),
     }),
     output: z.object({ issues: z.array(issueSchema) }),
+  },
+  listLabels: {
+    input: projectInput,
+    output: z.object({ labels: z.array(z.string()) }),
   },
   showIssue: {
     input: issueIdInput,
@@ -527,6 +532,10 @@ export default async function plugin(bb: BbPluginApi) {
           : listIssuesArgs({ status, priority }),
       );
       return { issues: normalizeIssues(value) };
+    },
+    async listLabels({ projectId }) {
+      const value = await runProjectBd(bb, settings, projectId, [...listIssuesArgs(), "--limit", "0"]);
+      return { labels: collectIssueLabels(normalizeIssues(value)) };
     },
     async showIssue({ projectId, id }) {
       const value = await runProjectBd(bb, settings, projectId, showIssueArgs(id));

@@ -19,6 +19,8 @@ import {
 } from "@bb/plugin-sdk/app";
 import type { rpcContract } from "./server";
 import type { Issue } from "../beads/bd-client";
+import { IssueLabels } from "../ui/issue-labels";
+import { LabelFilter } from "../ui/label-filter";
 import { QueryInput } from "../ui/query-input";
 import {
   invalidateProjectCatalog,
@@ -564,6 +566,7 @@ function IssueRow({ issue, onOpen }: { issue: Issue; onOpen: () => void }) {
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-xs font-medium">{issue.title}</span>
+        <IssueLabels labels={issue.labels} limit={2} />
       </span>
       <span className="flex shrink-0 items-center gap-2">
         <AgentBadge issue={issue} />
@@ -658,6 +661,7 @@ function IssueCard({
         <span className="mb-2 block line-clamp-2 text-sm font-medium">
           {issue.title}
         </span>
+        {issue.labels.length > 0 ? <span className="mb-2 block"><IssueLabels labels={issue.labels} limit={3} /></span> : null}
         <span className="flex items-center gap-2">
           <AgentBadge issue={issue} />
           <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
@@ -2078,6 +2082,7 @@ function IssueDetailMeta({ issue }: { issue: Issue }) {
       <span className="text-xs text-muted-foreground">{issue.id}</span>
       <AgentBadge issue={issue} showLabel />
       <AuthorBadge issue={issue} showLabel />
+      <IssueLabels labels={issue.labels} />
     </div>
   );
 }
@@ -2335,6 +2340,9 @@ function BeadsPanel({ subPath }: { subPath: string }) {
   const [issues, setIssues] = useState<Issue[]>([]);
   const [detail, setDetail] = useState<Issue | null>(null);
   const [query, setQuery] = useState("");
+  const [labels, setLabels] = useState<string[]>([]);
+  const [labelsLoading, setLabelsLoading] = useState(false);
+  const [labelsError, setLabelsError] = useState<string | null>(null);
   const [sortMode, setSortMode] = useState<SortMode>("manual");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -2583,6 +2591,26 @@ function BeadsPanel({ subPath }: { subPath: string }) {
     refresh,
     workspacePathOverride,
   ]);
+
+  // Labels belong to the whole active workspace, independently of the query.
+  useEffect(() => {
+    let cancelled = false;
+    setLabels([]);
+    setLabelsError(null);
+    setLabelsLoading(false);
+    if (!projectResolutionReady || activeProjectNeedsSetup) return;
+    setLabelsLoading(true);
+    void rpc.call("listLabels", {
+      ...(effectiveRpcProjectId ? { projectId: effectiveRpcProjectId } : {}),
+    }).then((result) => {
+      if (!cancelled) setLabels(result.labels);
+    }, (cause) => {
+      if (!cancelled) setLabelsError(cause instanceof Error ? cause.message : "Unable to load labels");
+    }).finally(() => {
+      if (!cancelled) setLabelsLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [effectiveRpcProjectId, workspacePathOverride, projectResolutionReady, activeProjectNeedsSetup, refresh]);
 
   const selectedEpic = useMemo(
     () =>
@@ -2978,6 +3006,7 @@ function BeadsPanel({ subPath }: { subPath: string }) {
               <div className="flex min-w-48 flex-[1_1_18rem] @md:max-w-[28rem]">
                 <QueryInput value={query} onChange={setQuery} />
               </div>
+              <LabelFilter labels={labels} query={query} onQueryChange={setQuery} loading={labelsLoading} error={labelsError} />
             </div>
             <span className="shrink-0 whitespace-nowrap text-xs tabular-nums text-muted-foreground">
               {loading ? "Loading…" : `${visibleIssues.length} issues`}
