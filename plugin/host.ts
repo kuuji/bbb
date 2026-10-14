@@ -1,5 +1,6 @@
 import { experimental_defineHostEntry } from "@get-bb/plugin-sdk";
 import { runBd } from "../beads/bd-client";
+import { isBdExecutable } from "../beads/bd-executable";
 import { bdHostContract } from "./host-contract";
 
 export default experimental_defineHostEntry({
@@ -7,7 +8,7 @@ export default experimental_defineHostEntry({
   handlers: {
     async execute({ command, args, cwd, timeoutMs }) {
       const expectedCommand = process.env.BEADS_BIN ?? "bd";
-      if (command !== expectedCommand && command !== "bd") {
+      if (command !== expectedCommand && !isBdExecutable(command)) {
         return {
           status: "spawn_error" as const,
           exitCode: null,
@@ -18,7 +19,7 @@ export default experimental_defineHostEntry({
         };
       }
 
-      const result = await runBd(args, { cwd, timeoutMs });
+      const result = await runBd(args, { cwd, timeoutMs, binary: command });
       if (result.ok) {
         return {
           status: "exited" as const,

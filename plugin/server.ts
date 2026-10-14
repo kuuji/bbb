@@ -15,6 +15,7 @@ import {
   updateIssueArgs,
   type Issue,
 } from "../beads/bd-client";
+import { isBdExecutable } from "../beads/bd-executable";
 import { bdHostContract } from "./host-contract";
 import {
   resolveWorkspaceTarget,
@@ -105,7 +106,15 @@ interface BeadsSettings {
   get(): Promise<{
     projectId?: string;
     workspacePath: string;
+    workspaceHostId?: string;
+    bdExecutable?: string;
   }>;
+}
+
+interface WorkspaceExecutionTarget {
+  path: string;
+  hostId?: string;
+  binary?: string;
 }
 
 type HostExecute = NonNullable<Parameters<typeof runBdJson>[1]>["execute"];
@@ -159,6 +168,11 @@ async function getWorkspaceTarget(
   projectId?: string,
 ) {
   const configured = await settings.get();
+  const binary = configured.bdExecutable?.trim();
+  if (binary && !isBdExecutable(binary)) {
+    throw new Error("The Beads executable must be bd on PATH or an absolute path to bd/bd.exe.");
+  }
+  const executable = binary ? { binary } : {};
   let target = resolveWorkspaceTarget({
     configuredProjectId: configured.projectId,
     projectId,
@@ -169,7 +183,10 @@ async function getWorkspaceTarget(
     throw new Error(
       "No Beads project was found among the BB projects. Open a project with .beads or configure a Beads project/path override in Settings.",
     );
-  if (target.kind === "path") return { path: target.path };
+  if (target.kind === "path") {
+    const hostId = configured.workspaceHostId?.trim();
+    return { path: target.path, ...executable, ...(hostId ? { hostId } : {}) };
+  }
 
   const project = await bb.sdk.projects.get({ projectId: target.projectId });
   const source = selectLocalWorkspaceSource(
@@ -177,6 +194,7 @@ async function getWorkspaceTarget(
   );
   return {
     path: source.path!.trim(),
+    ...executable,
     ...(source.hostId !== undefined ? { hostId: source.hostId } : {}),
   };
 }
@@ -210,7 +228,7 @@ function hostExecutor(bb: BbPluginApi): HostExecute | undefined {
 
 async function assertHostRouting(
   bb: BbPluginApi,
-  target: { path: string; hostId?: string },
+  target: WorkspaceExecutionTarget,
   execute: HostExecute | undefined,
 ) {
   if (typeof execute === "function" && target.hostId !== undefined) return;
@@ -235,7 +253,7 @@ async function assertHostRouting(
 
 async function runBdAtTarget(
   bb: BbPluginApi,
-  target: { path: string; hostId?: string },
+  target: WorkspaceExecutionTarget,
   args: readonly string[],
 ) {
   const hostId = target.hostId ?? (await bb.sdk.system.config()).primaryHostId ?? undefined;
@@ -244,6 +262,7 @@ async function runBdAtTarget(
   await assertHostRouting(bb, routedTarget, execute);
   return runBdJson(args, {
     cwd: target.path,
+    ...(target.binary ? { binary: target.binary } : {}),
     ...(typeof execute === "function" && hostId !== undefined
       ? { hostId }
       : {}),
@@ -253,7 +272,7 @@ async function runBdAtTarget(
 
 async function runRawBdAtTarget(
   bb: BbPluginApi,
-  target: { path: string; hostId?: string },
+  target: WorkspaceExecutionTarget,
   args: readonly string[],
 ) {
   const hostId = target.hostId ?? (await bb.sdk.system.config()).primaryHostId ?? undefined;
@@ -262,6 +281,7 @@ async function runRawBdAtTarget(
   await assertHostRouting(bb, routedTarget, execute);
   return runBd(args, {
     cwd: target.path,
+    ...(target.binary ? { binary: target.binary } : {}),
     ...(typeof execute === "function" && hostId !== undefined
       ? { hostId }
       : {}),
@@ -437,7 +457,19 @@ export default async function plugin(bb: BbPluginApi) {
       type: "string",
       label: "Workspace path override",
       description:
-        "Optional absolute path containing .beads. This takes precedence over project selection and runs bd on the BB server host.",
+        "Optional absolute path containing .beads, including a bd connect workspace. This takes precedence over project selection.",
+      default: "",
+    },
+    workspaceHostId: {
+      type: "string",
+      label: "Workspace host ID",
+      description: "BB machine owning the path override. Empty uses the primary BB host; project selections use their source host.",
+      default: "",
+    },
+    bdExecutable: {
+      type: "string",
+      label: "Beads CLI executable",
+      description: "Optional absolute path to bd/bd.exe on the selected host. Use a client with bd connect for an HTTP workspace. Empty uses the existing bd on PATH.",
       default: "",
     },
   });

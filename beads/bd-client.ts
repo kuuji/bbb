@@ -128,6 +128,8 @@ export function buildBdArgs(commandArgs: readonly string[]): string[] {
 
 export interface RunBdOptions {
   cwd?: string;
+  /** Explicit bd executable on the selected filesystem host. */
+  binary?: string;
   hostId?: string;
   timeoutMs?: number;
   execute?: (request: {
@@ -213,7 +215,7 @@ export function runBd(
   return new Promise((resolve) => {
     const args = buildBdArgs(commandArgs);
     const cwd = getCwd(options);
-    const bin = resolveBdBin();
+    const bin = options?.binary || resolveBdBin();
 
     const execute = options?.execute;
     if (execute) {

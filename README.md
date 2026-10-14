@@ -103,11 +103,49 @@ database, but deliberately does not install agent instructions or Git hooks.
 Optional settings are available under the plugin's bb settings page:
 
 - **Project override** selects a specific bb project.
-- **Workspace path override** points to an arbitrary local checkout on the bb
-  server host.
+- **Workspace path override** points to a checkout or a small `bd connect`
+  workspace, without requiring a local database.
+- **Workspace host ID** selects the enrolled BB machine owning that override.
+  Empty retains the primary-host behavior; project selections still use their
+  source host.
+- **Beads CLI executable** selects a compatible `bd`/`bd.exe` by absolute path
+  on that machine. Empty retains the existing CLI on PATH.
 
-Use the path override only for a checkout on the primary bb host. Leave it
-empty for projects stored on an enrolled remote host.
+Use the path override with its host ID for a dedicated connection workspace.
+Leave both empty to follow ordinary BB project sources.
+
+### Centralized Beads over HTTP
+
+The plugin uses the same native CLI commands for local and HTTP backends; it
+never opens Dolt files itself. Install a compatible upstream CLI with `bd
+connect` on one enrolled host, then create a separate connection workspace there:
+
+```sh
+mkdir -p "$HOME/.local/share/bb-beads/namu-central"
+cd "$HOME/.local/share/bb-beads/namu-central"
+"$HOME/.local/share/beads-http/bin/bd" connect https://beads.lab.byeon.ca \
+  --expect-project-id 1b075bca-a168-49d0-8f6f-a41a9e4d27a7
+```
+
+Set Workspace path override to that directory, Workspace host ID to that
+machine's ID (`bb machine list --json`), and Beads CLI executable to the
+compatible binary. The panel locks project selection while this override is
+active and browses the connected ledger. Existing project `.beads` databases,
+redirects, agent instructions and hooks stay untouched. Clearing these settings
+restores the previous project-backed behavior. No local database or sync is
+needed for the connection workspace.
+
+For the Namu deployment and pinned client details, see
+[centralized Beads instructions](https://github.com/kuuji/namu/blob/main/docs/centralized-beads.md).
+The hostname's `/v0/beads` API uses Namu staging's ledger; its existing root web
+UI belongs to a separate older ledger. This panel connects to Namu's ledger.
+
+The dedicated override is a whole-ledger view unless its local config sets
+`directory.labels`. That native setting scopes default `bd list`, but explicit
+queries and task IDs can address other projects, and create still needs a
+project label. The plugin currently has no label editor or automatic
+project-label assignment, so use the CLI with explicit labels for scoped task
+creation. Label filtering is organization, not access control.
 
 ## Query search
 

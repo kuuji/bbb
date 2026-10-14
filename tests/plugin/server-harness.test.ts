@@ -88,6 +88,58 @@ describe("Beads server harness", () => {
     expect(requests[0]).toMatchObject({ hostId: "host-primary" });
   });
 
+  it("uses the HTTP client and connection workspace on their explicit host", async () => {
+    const execute = vi.fn(async () => successResult([issue]));
+    const host = createFakePluginHost({
+      settings: {
+        workspacePath: "/home/alex/beads/central",
+        workspaceHostId: "host-central-client",
+        bdExecutable: "/home/alex/beads-http/bin/bd",
+      },
+      primaryHostId: "host-server",
+      hostCommandExecutor: execute,
+    });
+    await plugin(host.bb);
+    await host.harness.callRpc("listIssues", { projectId: "ignored-project" });
+    expect(execute).toHaveBeenCalledWith(expect.objectContaining({
+      cwd: "/home/alex/beads/central",
+      hostId: "host-central-client",
+      command: "/home/alex/beads-http/bin/bd",
+    }));
+    await host.harness.callRpc("createIssue", { title: "Remote issue" });
+    await host.harness.callRpc("updateIssue", { id: issue.id, title: "Changed" });
+    expect(execute.mock.calls).toHaveLength(3);
+    for (const [request] of execute.mock.calls as unknown as Array<[Record<string, unknown>]>) {
+      expect(request).toMatchObject({
+        cwd: "/home/alex/beads/central", hostId: "host-central-client",
+        command: "/home/alex/beads-http/bin/bd",
+      });
+    }
+  });
+
+  it("does not initialize the repository when a remote connection workspace is active", async () => {
+    const execute = vi.fn(async () => successResult([issue]));
+    const host = createFakePluginHost({
+      settings: { workspacePath: "/remote/connection", workspaceHostId: "host-client" },
+      hostCommandExecutor: execute,
+    });
+    await plugin(host.bb);
+    await expect(host.harness.callRpc("initializeProject", { projectId: "local-project" }))
+      .rejects.toThrow("Clear the workspace path override");
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it("rejects a configured shell before routing any command", async () => {
+    const execute = vi.fn(async () => successResult([issue]));
+    const host = createFakePluginHost({
+      settings: { workspacePath: "/remote/connection", bdExecutable: "/bin/sh" },
+      hostCommandExecutor: execute,
+    });
+    await plugin(host.bb);
+    await expect(host.harness.callRpc("listIssues", {})).rejects.toThrow("absolute path to bd");
+    expect(execute).not.toHaveBeenCalled();
+  });
+
   it("maps bd failures to actionable RPC errors", async () => {
     const host = createFakePluginHost({
       projectSources: [{ type: "local_path", path: "/workspace", isDefault: true }],
