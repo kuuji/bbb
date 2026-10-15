@@ -77,6 +77,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { useIsCompactViewport } from "@/components/ui/hooks/use-compact-viewport";
 import {
   chooseProjectId,
   projectIdFromComposerScope,
@@ -558,10 +559,10 @@ function IssueRow({ issue, onOpen }: { issue: Issue; onOpen: () => void }) {
   return (
     <button
       type="button"
-      className="flex w-full min-h-10 cursor-pointer items-center gap-2 border-b border-border-hairline px-3 py-1.5 text-left transition-colors hover:bg-state-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      className="flex w-full min-w-0 min-h-10 cursor-pointer items-center gap-2 border-b border-border-hairline px-3 py-1.5 text-left transition-colors hover:bg-state-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
       onClick={onOpen}
     >
-      <span className="shrink-0 text-[11px] font-mono text-muted-foreground">
+      <span className="max-w-24 shrink-0 truncate text-[11px] font-mono text-muted-foreground @lg:max-w-48">
         {issue.id}
       </span>
       <span className="min-w-0 flex-1">
@@ -1614,7 +1615,7 @@ function EpicNavigationRail({
   }, [progress, query, selectedPriorities, selectedStatuses, sortMode]);
 
   return (
-    <aside className="flex h-full w-64 shrink-0 flex-col border-l border-border-hairline bg-background px-3 py-4 max-md:w-56">
+    <aside aria-label="Epic navigation" className="flex h-full min-h-0 w-full min-w-0 flex-col bg-background px-3 py-4 md:w-64 md:shrink-0 md:border-l md:border-border-hairline">
       <div className="mb-3 flex items-baseline justify-between gap-2">
         <h2 className="text-sm font-semibold">Epics</h2>
         <span className="text-xs tabular-nums text-muted-foreground">
@@ -1985,7 +1986,7 @@ function CreateIssueDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
-        <Button size="sm" aria-label="New task">
+        <Button size="sm" aria-label="New task" className={compact ? "w-8 px-0 @lg:w-auto @lg:px-3" : undefined}>
           <Icon name="Plus" className="h-4 w-4" aria-hidden="true" />
           <span className={compact ? "hidden @lg:inline" : undefined}>New task</span>
         </Button>
@@ -2171,7 +2172,7 @@ function IssueDetailsContent({
   ];
 
   return (
-    <div className="h-full overflow-y-auto px-1">
+    <div className="h-full overflow-y-auto px-1 pb-[max(1rem,env(safe-area-inset-bottom))]">
       <div className="mb-4 rounded-md bg-muted/30 p-4">
         <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Description
@@ -2179,7 +2180,7 @@ function IssueDetailsContent({
         {issue.description ? (
           <Markdown
             content={issue.description}
-            className="m-0 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0"
+            className="m-0 break-words [&_pre]:overflow-x-auto [&_p:first-child]:mt-0 [&_p:last-child]:mb-0"
           />
         ) : (
           <span className="text-muted-foreground">No description.</span>
@@ -2331,6 +2332,7 @@ function IssueDetailsContent({
 }
 
 function BeadsPanel({ subPath }: { subPath: string }) {
+  const isCompactViewport = useIsCompactViewport();
   const { projectId } = useBbContext();
   const sidebarThreads = experimental_useSidebarThreads();
   const composerView = useComposerView();
@@ -2674,6 +2676,7 @@ function BeadsPanel({ subPath }: { subPath: string }) {
   }
 
   function openEpicFromRail(id: string) {
+    if (isCompactViewport) setEpicRailOpen(false);
     setEpicScopeId(id);
     setEpicScopeEnabled(true);
     setViewMode("epics");
@@ -2688,6 +2691,7 @@ function BeadsPanel({ subPath }: { subPath: string }) {
   }
 
   function startNewEpic() {
+    if (isCompactViewport) setEpicRailOpen(false);
     setCreateType("epic");
     setCreateOpen(true);
   }
@@ -2841,7 +2845,7 @@ function BeadsPanel({ subPath }: { subPath: string }) {
   }
 
   return (
-    <div className="@container flex h-full flex-col">
+    <div className="@container flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
       {/* Header */}
       <BeadsToolbarFrame>
         <div className="w-full">
@@ -2850,7 +2854,7 @@ function BeadsPanel({ subPath }: { subPath: string }) {
             className="flex min-w-0 flex-wrap items-center gap-2"
           >
             <div
-              className="relative flex w-48 min-w-0 max-w-48 flex-[1_1_12rem] overflow-hidden rounded-md border border-border"
+              className="relative flex min-w-0 flex-[1_1_40%] @lg:max-w-48 @lg:flex-[1_1_12rem] overflow-hidden rounded-md border border-border"
               role="group"
               aria-label="Beads project"
             >
@@ -2887,7 +2891,7 @@ function BeadsPanel({ subPath }: { subPath: string }) {
               />
             </div>
             <div
-              className="relative flex w-48 min-w-0 max-w-48 flex-[1_1_12rem] overflow-hidden rounded-md border border-border"
+              className="relative flex min-w-0 flex-[1_1_40%] @lg:max-w-48 @lg:flex-[1_1_12rem] overflow-hidden rounded-md border border-border"
               role="group"
               aria-label="Issue scope"
             >
@@ -2928,7 +2932,7 @@ function BeadsPanel({ subPath }: { subPath: string }) {
                 type="button"
                 size="sm"
                 variant={viewMode === "kanban" ? "secondary" : "ghost"}
-                className="rounded-none"
+                className="rounded-none px-2 @lg:px-3"
                 onClick={() => {
                   setGraphFocusId(null);
                   setViewMode("kanban");
@@ -2942,7 +2946,7 @@ function BeadsPanel({ subPath }: { subPath: string }) {
                 type="button"
                 size="sm"
                 variant={viewMode === "list" ? "secondary" : "ghost"}
-                className="rounded-none border-l border-border"
+                className="rounded-none border-l border-border px-2 @lg:px-3"
                 onClick={() => {
                   setGraphFocusId(null);
                   setViewMode("list");
@@ -2956,7 +2960,7 @@ function BeadsPanel({ subPath }: { subPath: string }) {
                 type="button"
                 size="sm"
                 variant={viewMode === "graph" ? "secondary" : "ghost"}
-                className="rounded-none border-l border-border"
+                className="rounded-none border-l border-border px-2 @lg:px-3"
                 onClick={() => {
                   setGraphFocusId(null);
                   setViewMode("graph");
@@ -2967,7 +2971,7 @@ function BeadsPanel({ subPath }: { subPath: string }) {
                 Graph
               </Button>
             </div>
-            <div className="ml-auto flex shrink-0 items-center gap-2">
+            <div className="ml-auto flex shrink-0 items-center gap-1 @lg:gap-2">
               <CreateIssueDialog
                 open={createOpen}
                 onOpenChange={handleCreateOpenChange}
@@ -3002,10 +3006,12 @@ function BeadsPanel({ subPath }: { subPath: string }) {
             data-testid="beads-toolbar-secondary"
             className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5 border-t border-border-hairline pt-1"
           >
-            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
-              <div className="flex min-w-48 flex-[1_1_18rem] @md:max-w-[28rem]">
+            <div className="flex min-w-0 basis-full @lg:flex-1">
+              <div className="flex min-w-0 flex-1 @lg:max-w-[28rem]">
                 <QueryInput value={query} onChange={setQuery} />
               </div>
+            </div>
+            <div className="min-w-0 flex-1 @lg:max-w-72">
               <LabelFilter labels={labels} query={query} onQueryChange={setQuery} loading={labelsLoading} error={labelsError} />
             </div>
             <span className="shrink-0 whitespace-nowrap text-xs tabular-nums text-muted-foreground">
@@ -3039,8 +3045,8 @@ function BeadsPanel({ subPath }: { subPath: string }) {
       </BeadsToolbarFrame>
 
       {/* Content area */}
-      <div className="flex min-h-0 flex-1">
-        <div className="min-w-0 flex-1 overflow-y-auto p-4">
+      <div className="flex min-h-0 min-w-0 flex-1">
+        <div className="min-w-0 flex-1 overflow-y-auto p-2 @lg:p-4">
           <div className="w-full">
             {activeProjectNeedsSetup && activeProject ? (
               <BeadsSetupCard
@@ -3092,7 +3098,7 @@ function BeadsPanel({ subPath }: { subPath: string }) {
           )}
           </div>
         </div>
-        {epicRailOpen ? (
+        {epicRailOpen && !isCompactViewport ? (
           <EpicNavigationRail
             issues={issues}
             selectedEpicId={epicScopeId}
@@ -3102,11 +3108,31 @@ function BeadsPanel({ subPath }: { subPath: string }) {
         ) : null}
       </div>
 
+      <Dialog open={isCompactViewport && epicRailOpen} onOpenChange={setEpicRailOpen}>
+        <DialogContent className="flex max-h-[80dvh] min-h-0 flex-col gap-0 p-0">
+          <DialogHeader className="shrink-0 px-4 pt-3">
+            <DialogTitle className="sr-only">Epic navigation</DialogTitle>
+            <DialogDescription className="sr-only">Choose an epic to view its issues.</DialogDescription>
+            <DialogClose asChild>
+              <Button variant="ghost" size="sm" className="self-end">Close epics</Button>
+            </DialogClose>
+          </DialogHeader>
+          <div className="h-[60dvh] min-h-0">
+            <EpicNavigationRail
+              issues={issues}
+              selectedEpicId={epicScopeId}
+              onSelectEpic={openEpicFromRail}
+              onNewEpic={startNewEpic}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Detail Dialog */}
       <Dialog open={detailOpen} onOpenChange={(open) => !open && closeDetail()}>
-        <DialogContent className="max-h-[85vh] max-w-2xl gap-0 overflow-hidden p-0">
-          <div className="overflow-hidden">
-            <DialogHeader className="space-y-0 px-6 py-4">
+        <DialogContent className="flex h-[85dvh] max-h-[85dvh] min-h-0 max-w-2xl flex-col gap-0 overflow-hidden p-0">
+          <div className="shrink-0 overflow-hidden">
+            <DialogHeader className="space-y-0 px-4 py-3 sm:px-6 sm:py-4">
               <DialogTitle className="truncate">
                 {detail ? detail.title : "Loading…"}
               </DialogTitle>
@@ -3121,7 +3147,7 @@ function BeadsPanel({ subPath }: { subPath: string }) {
             </DialogHeader>
           </div>
           {detail ? (
-            <div className="h-[min(70vh,32rem)] overflow-hidden sm:h-[calc(85vh-5rem)]">
+            <div className="min-h-0 flex-1 overflow-hidden">
               <IssueDetailsContent
                 issue={detail}
                 onUpdate={updateIssue}
