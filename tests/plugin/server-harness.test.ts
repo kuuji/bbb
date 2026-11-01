@@ -35,6 +35,47 @@ function successResult(value: unknown = issue): PluginHostCommandResult {
 }
 
 describe("Beads server harness", () => {
+  it("uses the configured client for project availability and issue reads on each source host", async () => {
+    const binary = "/home/alex/beads-http/bin/bd";
+    const projects = [
+      { id: "proj-one", name: "One", sources: [{ type: "local_path", path: "/one", hostId: "host-one", isDefault: true }] },
+      { id: "proj-two", name: "Two", sources: [{ type: "local_path", path: "/two", hostId: "host-two", isDefault: true }] },
+    ];
+    const execute = vi.fn(async (request) => request.command === binary
+      ? successResult([issue])
+      : { ...successResult(), exitCode: 1, stdout: "", stderr: "HTTP backend unsupported" });
+    const host = createFakePluginHost({
+      settings: { bdExecutable: ` ${binary} `, workspaceHostId: "ignored-override-host" },
+      projects,
+      hostCommandExecutor: execute,
+    });
+    await plugin(host.bb);
+
+    await expect(host.harness.callRpc("listProjects", {})).resolves.toEqual({
+      projects: projects.map(({ id, name }) => ({ id, name, hasBeads: true, canInitialize: false, sourceAvailable: true })),
+    });
+    for (const project of projects) {
+      await host.harness.callRpc("listIssues", { projectId: project.id });
+      expect(execute).toHaveBeenCalledWith(expect.objectContaining({
+        command: binary, cwd: project.sources[0]!.path, hostId: project.sources[0]!.hostId,
+      }));
+    }
+    expect(execute).toHaveBeenCalledTimes(4);
+    expect(execute.mock.calls.every(([request]) => request.command === binary)).toBe(true);
+  });
+
+  it("rejects an invalid configured client before probing project availability", async () => {
+    const execute = vi.fn(async () => successResult([issue]));
+    const host = createFakePluginHost({
+      settings: { bdExecutable: "/bin/sh" },
+      projects: [{ id: "proj-one", sources: [{ type: "local_path", path: "/one", isDefault: true }] }],
+      hostCommandExecutor: execute,
+    });
+    await plugin(host.bb);
+    await expect(host.harness.callRpc("listProjects", {})).rejects.toThrow("absolute path to bd");
+    expect(execute).not.toHaveBeenCalled();
+  });
+
   it("registers the public RPC methods and routes project commands", async () => {
     const requests: Array<{ hostId?: string; cwd: string; args: readonly string[] }> = [];
     const host = createFakePluginHost({

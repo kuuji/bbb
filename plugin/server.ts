@@ -167,23 +167,27 @@ function asIssue(value: unknown): Issue {
   return issue;
 }
 
+function configuredExecutable(value?: string): { binary?: string } {
+  const binary = value?.trim();
+  if (binary && !isBdExecutable(binary)) {
+    throw new Error("The Beads executable must be bd on PATH or an absolute path to bd/bd.exe.");
+  }
+  return binary ? { binary } : {};
+}
+
 async function getWorkspaceTarget(
   bb: BbPluginApi,
   settings: BeadsSettings,
   projectId?: string,
 ) {
   const configured = await settings.get();
-  const binary = configured.bdExecutable?.trim();
-  if (binary && !isBdExecutable(binary)) {
-    throw new Error("The Beads executable must be bd on PATH or an absolute path to bd/bd.exe.");
-  }
-  const executable = binary ? { binary } : {};
+  const executable = configuredExecutable(configured.bdExecutable);
   let target = resolveWorkspaceTarget({
     configuredProjectId: configured.projectId,
     projectId,
     workspacePath: configured.workspacePath,
   });
-  if (target === null) target = await discoverBeadsProject(bb);
+  if (target === null) target = await discoverBeadsProject(bb, settings);
   if (target === null)
     throw new Error(
       "No Beads project was found among the BB projects. Open a project with .beads or configure a Beads project/path override in Settings.",
@@ -317,8 +321,9 @@ async function projectTarget(
  */
 async function discoverBeadsProject(
   bb: BbPluginApi,
+  settings: BeadsSettings,
 ): Promise<{ kind: "project"; projectId: string } | null> {
-  const matches = await findBeadsProjects(bb);
+  const matches = await findBeadsProjects(bb, settings);
 
   if (matches.length === 1) {
     return { kind: "project", projectId: matches[0]!.id };
@@ -334,14 +339,15 @@ async function discoverBeadsProject(
   return null;
 }
 
-async function findBeadsProjects(bb: BbPluginApi): Promise<ProjectLike[]> {
-  const inspections = await inspectProjects(bb);
+async function findBeadsProjects(bb: BbPluginApi, settings: BeadsSettings): Promise<ProjectLike[]> {
+  const inspections = await inspectProjects(bb, settings);
   return inspections
     .filter((inspection) => inspection.hasBeads)
     .map((inspection) => inspection.project);
 }
 
-async function inspectProjects(bb: BbPluginApi): Promise<ProjectInspection[]> {
+async function inspectProjects(bb: BbPluginApi, settings: BeadsSettings): Promise<ProjectInspection[]> {
+  const executable = configuredExecutable((await settings.get()).bdExecutable);
   const projects = (await bb.sdk.projects.list({
     includePersonal: true,
   })) as readonly ProjectLike[];
@@ -362,7 +368,7 @@ async function inspectProjects(bb: BbPluginApi): Promise<ProjectInspection[]> {
       try {
         result = await runBdAtTarget(
           bb,
-          target,
+          { ...target, ...executable },
           ["list", "--all", "--flat", "--limit", "1"],
         );
       } catch {
@@ -428,7 +434,7 @@ async function runProjectBd(
     !configured.workspacePath?.trim() &&
     isMissingBeadsDatabase(result)
   ) {
-    const discovered = await discoverBeadsProject(bb);
+    const discovered = await discoverBeadsProject(bb, settings);
     if (discovered && discovered.projectId !== projectId) {
       const fallbackTarget = await getWorkspaceTarget(
         bb,
@@ -481,7 +487,7 @@ export default async function plugin(bb: BbPluginApi) {
 
   bb.rpc.register(rpcContract, {
     async listProjects() {
-      const projects = await inspectProjects(bb);
+      const projects = await inspectProjects(bb, settings);
       return {
         projects: projects.map(({ project, hasBeads, canInitialize, sourceAvailable }) => ({
           id: project.id,
